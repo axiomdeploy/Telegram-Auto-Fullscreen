@@ -1,0 +1,149 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Telegram Auto Fullscreen</title>
+<style>
+  /* ===== Telegram Auto Fullscreen - popup (full black theme) ===== */
+
+  /* --p = switch progress (0 = OFF, 1 = ON). Animatable, drives the live drag effects. */
+  @property --p { syntax: '<number>'; inherits: true; initial-value: 0; }
+
+  * { box-sizing: border-box; -webkit-user-select: none; user-select: none; }
+  html, body { margin: 0; background: #000; }
+  body { width: 300px; font-family: "Segoe UI", system-ui, Arial, sans-serif; color: #f2f2f2; --p: 0; }
+  body.scrub { transition: --p .45s cubic-bezier(.34,1.4,.64,1); }
+  body.scrub.live { transition: none; }
+  .wrap { padding: 20px; }
+
+  /* header */
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .logo { width: 44px; height: 44px; border-radius: 12px; box-shadow: 0 0 0 1px #262626, 0 6px 18px rgba(255,255,255,.06); }
+  h1 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: .2px; }
+  .sub { margin: 2px 0 0; font-size: 11px; color: #7a7a7a; letter-spacing: 1.2px; text-transform: uppercase; }
+
+  /* demo "video" stage */
+  .stage { position: relative; height: 130px; border-radius: 16px; background: radial-gradient(120% 120% at 50% 0%, #141414 0%, #050505 60%); border: 1px solid #1f1f1f; display: grid; place-items: center; overflow: hidden; margin-bottom: 18px; }
+  .screen { position: relative; width: 46%; height: 54%; border-radius: 9px; border: 1px solid #3a3a3a; background: linear-gradient(135deg, #1b1b1b, #0a0a0a); display: grid; place-items: center; opacity: .55; transition: opacity .4s, border-color .4s, box-shadow .4s; }
+  .play { width: 0; height: 0; border-left: 14px solid #bdbdbd; border-top: 9px solid transparent; border-bottom: 9px solid transparent; margin-left: 4px; transition: opacity .3s; }
+  .corner { position: absolute; width: 10px; height: 10px; border: 0 solid #fff; opacity: 0; transition: opacity .3s; }
+  .c1 { top: 4px; left: 4px; border-top-width: 2px; border-left-width: 2px; border-top-left-radius: 3px; }
+  .c2 { top: 4px; right: 4px; border-top-width: 2px; border-right-width: 2px; border-top-right-radius: 3px; }
+  .c3 { bottom: 4px; left: 4px; border-bottom-width: 2px; border-left-width: 2px; border-bottom-left-radius: 3px; }
+  .c4 { bottom: 4px; right: 4px; border-bottom-width: 2px; border-right-width: 2px; border-bottom-right-radius: 3px; }
+  .bar { position: absolute; left: 14px; right: 14px; bottom: 9px; height: 3px; border-radius: 3px; background: #1c1c1c; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: #fff; border-radius: 3px; }
+
+  /* ON: looping demo (starts at the big phase so there is no jump after dragging) */
+  body.is-on .screen { opacity: 1; border-color: #fff; box-shadow: 0 0 22px rgba(255,255,255,.18); animation: grow 3s cubic-bezier(.65,0,.35,1) -1.5s infinite; }
+  body.is-on .corner { opacity: 1; }
+  body.is-on .bar i { animation: progress 3s linear infinite; }
+  body.is-on.is-paused .screen, body.is-on.is-paused .bar i { animation-play-state: paused; }
+  body.is-on.is-paused .screen { opacity: .6; }
+
+  @keyframes grow {
+    0%, 12%   { width: 46%; height: 54%; }
+    42%, 72%  { width: 94%; height: 88%; }
+    100%      { width: 46%; height: 54%; }
+  }
+  @keyframes progress { from { width: 0; } to { width: 100%; } }
+
+  /* While you drag, the knob SCRUBS the video: it grows, glows and the timeline follows */
+  body.scrub .screen { animation: none !important; transition: none; width: calc(46% + 48% * var(--p)); height: calc(54% + 34% * var(--p)); opacity: calc(.55 + .45 * var(--p)); border-color: rgba(255,255,255,calc(.22 + .78 * var(--p))); box-shadow: 0 0 calc(30px * var(--p)) rgba(255,255,255,calc(.28 * var(--p))); }
+  body.scrub .corner { opacity: var(--p); transition: none; }
+  body.scrub .bar i { animation: none !important; width: calc(100% * var(--p)); }
+  body.scrub .play { transform: scale(calc(1 - .45 * var(--p))); opacity: calc(1 - .6 * var(--p)); transition: none; }
+  body.scrub .stage { border-color: rgba(255,255,255,calc(.12 + .4 * var(--p))); }
+
+  /* the switch */
+  .track { position: relative; height: 64px; border-radius: 32px; background: #0d0d0d; border: 1px solid #262626; cursor: grab; touch-action: none; overflow: visible; transition: border-color .35s, box-shadow .35s; outline: none; }
+  .track:focus-visible { border-color: #8a8a8a; }
+  .track.drag { cursor: grabbing; }
+  body.is-on .track { border-color: #fff; box-shadow: 0 0 26px rgba(255,255,255,.16), inset 0 0 18px rgba(255,255,255,.06); }
+  body.scrub .track { transition: none; border-color: rgba(255,255,255,calc(.15 + .85 * var(--p))); box-shadow: 0 0 calc(30px * var(--p)) rgba(255,255,255,calc(.2 * var(--p))), inset 0 0 calc(18px * var(--p)) rgba(255,255,255,calc(.07 * var(--p))); }
+  .fill { position: absolute; inset: 0; border-radius: 32px; background: linear-gradient(90deg, rgba(255,255,255,.18), rgba(255,255,255,0)); opacity: 0; transition: opacity .35s; pointer-events: none; }
+  body.is-on .fill { opacity: 1; }
+  body.scrub .fill { transition: none; opacity: var(--p); }
+  .lbl { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; font-size: 15px; font-weight: 800; letter-spacing: 2px; pointer-events: none; transition: opacity .3s; }
+  .l-on  { left: 24px; color: #fff; opacity: 0; }
+  .l-off { right: 22px; color: #5d5d5d; opacity: 1; }
+  body.is-on .l-on { opacity: 1; }
+  body.is-on .l-off { opacity: 0; }
+  body.scrub .l-on { transition: none; opacity: var(--p); }
+  body.scrub .l-off { transition: none; opacity: calc(1 - var(--p)); }
+
+  .knob { position: absolute; top: 4px; left: 4px; width: 54px; height: 54px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff, #cfcfcf); display: grid; place-items: center; box-shadow: 0 4px 14px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.2); transition: transform .5s cubic-bezier(.34,1.56,.64,1), box-shadow .3s; will-change: transform; }
+  .knob svg { width: 26px; height: 26px; transition: transform .5s cubic-bezier(.34,1.56,.64,1); }
+  body.is-on .knob svg { transform: scale(1.12) rotate(90deg); }
+  /* while dragging: tiny lag makes the knob feel soft, icon spins with progress */
+  .track.drag .knob { transition: transform .06s linear; box-shadow: 0 8px 24px rgba(0,0,0,.85), 0 0 calc(24px * var(--p)) rgba(255,255,255,.55), 0 0 0 1px rgba(255,255,255,.4); }
+  .track.drag .knob svg { transition: none; transform: rotate(calc(90deg * var(--p))) scale(calc(1 + .12 * var(--p))); }
+
+  /* burst effect when toggled */
+  .p { position: absolute; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: #fff; pointer-events: none; animation: pop .65s ease-out forwards; }
+  .ring { position: absolute; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; border: 2px solid #fff; pointer-events: none; animation: ring .6s ease-out forwards; }
+  @keyframes pop  { to { transform: translate(var(--dx), var(--dy)) scale(0); opacity: 0; } }
+  @keyframes ring { to { transform: scale(5); opacity: 0; } }
+
+  /* text */
+  #status { margin-top: 16px; min-height: 52px; font-size: 12.5px; line-height: 1.55; color: #9a9a9a; text-align: center; }
+  #status b { color: #fff; font-weight: 700; }
+  .hint { margin-top: 2px; text-align: center; font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; color: #4a4a4a; }
+
+  /* option chips */
+  .chips { display: flex; gap: 8px; margin-top: 14px; }
+  .chip { flex: 1; padding: 9px 6px; border-radius: 12px; border: 1px solid #262626; background: #0a0a0a; color: #6d6d6d; font: 600 11.5px "Segoe UI", system-ui, Arial, sans-serif; letter-spacing: .3px; cursor: pointer; transition: all .25s; display: flex; align-items: center; justify-content: center; gap: 7px; }
+  .chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #3a3a3a; transition: all .25s; }
+  .chip:hover { border-color: #444; }
+  .chip.on { color: #fff; border-color: #888; background: #111; }
+  .chip.on::before { background: #fff; box-shadow: 0 0 8px #fff; }
+  .chip:active { transform: scale(.95); }
+
+  .count { margin-top: 12px; text-align: center; font-size: 11px; color: #5a5a5a; letter-spacing: .4px; }
+  .count b { color: #cfcfcf; font-weight: 700; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <img class="logo" src="icons/icon128.png" alt="logo">
+      <div>
+        <h1>Telegram Auto Fullscreen</h1>
+        <p class="sub">Works only on Telegram</p>
+      </div>
+    </header>
+
+    <!-- tiny looping demo: the video grows to fullscreen; dragging scrubs it -->
+    <div class="stage" id="stage">
+      <div class="screen">
+        <span class="corner c1"></span><span class="corner c2"></span>
+        <span class="corner c3"></span><span class="corner c4"></span>
+        <div class="play"></div>
+        <div class="bar"><i></i></div>
+      </div>
+    </div>
+
+    <!-- drag the knob or just tap -->
+    <div class="track" id="track" role="switch" aria-checked="true" tabindex="0">
+      <div class="fill"></div>
+      <span class="lbl l-on">ON</span>
+      <span class="lbl l-off">OFF</span>
+      <div class="knob" id="knob">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>
+        </svg>
+      </div>
+    </div>
+
+    <div id="status"></div>
+    <div class="hint">Drag the knob or tap it</div>
+
+    <div class="chips">
+      <button class="chip on" id="chipSafe" title="Human-like random delays and per-minute limits">Safe mode</button>
+      <button class="chip on" id="chipExit" title="Leave fullscreen when you close the video">Auto exit</button>
+    </div>
+    <div class="count">Auto fullscreens so far: <b id="count">0</b></div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

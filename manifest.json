@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Telegram Auto Fullscreen",
+  "version": "1.3.0",
+  "description": "Automatically enters fullscreen when you open a video in Telegram. Smart pause and resume, safe mode, and a one-tap ON/OFF switch.",
+  "minimum_chrome_version": "110",
+  "permissions": ["debugger", "storage"],
+  "host_permissions": ["https://web.telegram.org/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://web.telegram.org/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "Telegram Auto Fullscreen",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png"
+    }
+  }
+}
